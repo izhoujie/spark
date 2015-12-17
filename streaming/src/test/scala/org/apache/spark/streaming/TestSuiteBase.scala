@@ -76,7 +76,7 @@ class TestInputStream[T: ClassTag](ssc_ : StreamingContext, input: Seq[Seq[T]], 
     }
 
     // Report the input data's information to InputInfoTracker for testing
-    val inputInfo = InputInfo(id, selectedInput.length.toLong)
+    val inputInfo = StreamInputInfo(id, selectedInput.length.toLong)
     ssc.scheduler.inputInfoTracker.reportInfo(validTime, inputInfo)
 
     val rdd = ssc.sc.makeRDD(selectedInput, numPartitions)
@@ -98,7 +98,7 @@ class TestOutputStream[T: ClassTag](
   ) extends ForEachDStream[T](parent, (rdd: RDD[T], t: Time) => {
     val collected = rdd.collect()
     output += collected
-  }) {
+  }, false) {
 
   // This is to clear the output buffer every it is read from a checkpoint
   @throws(classOf[IOException])
@@ -122,7 +122,7 @@ class TestOutputStreamWithPartitions[T: ClassTag](
   extends ForEachDStream[T](parent, (rdd: RDD[T], t: Time) => {
     val collected = rdd.glom().collect().map(_.toSeq)
     output += collected
-  }) {
+  }, false) {
 
   // This is to clear the output buffer every it is read from a checkpoint
   @throws(classOf[IOException])
@@ -142,6 +142,7 @@ class BatchCounter(ssc: StreamingContext) {
   // All access to this state should be guarded by `BatchCounter.this.synchronized`
   private var numCompletedBatches = 0
   private var numStartedBatches = 0
+  private var lastCompletedBatchTime: Time = null
 
   private val listener = new StreamingListener {
     override def onBatchStarted(batchStarted: StreamingListenerBatchStarted): Unit =
@@ -152,6 +153,7 @@ class BatchCounter(ssc: StreamingContext) {
     override def onBatchCompleted(batchCompleted: StreamingListenerBatchCompleted): Unit =
       BatchCounter.this.synchronized {
         numCompletedBatches += 1
+        lastCompletedBatchTime = batchCompleted.batchInfo.batchTime
         BatchCounter.this.notifyAll()
       }
   }
@@ -163,6 +165,10 @@ class BatchCounter(ssc: StreamingContext) {
 
   def getNumStartedBatches: Int = this.synchronized {
     numStartedBatches
+  }
+
+  def getLastCompletedBatchTime: Time = this.synchronized {
+    lastCompletedBatchTime
   }
 
   /**

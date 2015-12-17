@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+// scalastyle:off println
 package org.apache.spark.examples.streaming.clickstream
 
 import java.net.ServerSocket
@@ -50,8 +51,8 @@ object PageView extends Serializable {
   */
 // scalastyle:on
 object PageViewGenerator {
-  val pages = Map("http://foo.com/"        -> .7,
-                  "http://foo.com/news"    -> 0.2,
+  val pages = Map("http://foo.com/" -> .7,
+                  "http://foo.com/news" -> 0.2,
                   "http://foo.com/contact" -> .1)
   val httpStatus = Map(200 -> .95,
                        404 -> .05)
@@ -108,3 +109,4 @@ object PageViewGenerator {
     }
   }
 }
+// scalastyle:on println

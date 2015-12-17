@@ -17,6 +17,8 @@
 
 package org.apache.spark.util
 
+import scala.collection.mutable.ArrayBuffer
+
 import java.util.concurrent.TimeoutException
 
 import akka.actor.ActorNotFound
@@ -24,7 +26,7 @@ import akka.actor.ActorNotFound
 import org.apache.spark._
 import org.apache.spark.rpc.RpcEnv
 import org.apache.spark.scheduler.MapStatus
-import org.apache.spark.storage.BlockManagerId
+import org.apache.spark.storage.{BlockManagerId, ShuffleBlockId}
 import org.apache.spark.SSLSampleConfigs._
 
 
@@ -107,8 +109,9 @@ class AkkaUtilsSuite extends SparkFunSuite with LocalSparkContext with ResetSyst
     slaveTracker.updateEpoch(masterTracker.getEpoch)
 
     // this should succeed since security off
-    assert(slaveTracker.getServerStatuses(10, 0).toSeq ===
-           Seq((BlockManagerId("a", "hostA", 1000), size1000)))
+    assert(slaveTracker.getMapSizesByExecutorId(10, 0).toSeq ===
+           Seq((BlockManagerId("a", "hostA", 1000),
+             ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000)))))
 
     rpcEnv.shutdown()
     slaveRpcEnv.shutdown()
@@ -153,8 +156,9 @@ class AkkaUtilsSuite extends SparkFunSuite with LocalSparkContext with ResetSyst
     slaveTracker.updateEpoch(masterTracker.getEpoch)
 
     // this should succeed since security on and passwords match
-    assert(slaveTracker.getServerStatuses(10, 0).toSeq ===
-           Seq((BlockManagerId("a", "hostA", 1000), size1000)))
+    assert(slaveTracker.getMapSizesByExecutorId(10, 0) ===
+           Seq((BlockManagerId("a", "hostA", 1000),
+             ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000)))))
 
     rpcEnv.shutdown()
     slaveRpcEnv.shutdown()
@@ -232,8 +236,8 @@ class AkkaUtilsSuite extends SparkFunSuite with LocalSparkContext with ResetSyst
     slaveTracker.updateEpoch(masterTracker.getEpoch)
 
     // this should succeed since security off
-    assert(slaveTracker.getServerStatuses(10, 0).toSeq ===
-      Seq((BlockManagerId("a", "hostA", 1000), size1000)))
+    assert(slaveTracker.getMapSizesByExecutorId(10, 0) ===
+      Seq((BlockManagerId("a", "hostA", 1000), ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000)))))
 
     rpcEnv.shutdown()
     slaveRpcEnv.shutdown()
@@ -278,8 +282,8 @@ class AkkaUtilsSuite extends SparkFunSuite with LocalSparkContext with ResetSyst
     masterTracker.incrementEpoch()
     slaveTracker.updateEpoch(masterTracker.getEpoch)
 
-    assert(slaveTracker.getServerStatuses(10, 0).toSeq ===
-      Seq((BlockManagerId("a", "hostA", 1000), size1000)))
+    assert(slaveTracker.getMapSizesByExecutorId(10, 0) ===
+      Seq((BlockManagerId("a", "hostA", 1000), ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000)))))
 
     rpcEnv.shutdown()
     slaveRpcEnv.shutdown()
@@ -336,10 +340,11 @@ class AkkaUtilsSuite extends SparkFunSuite with LocalSparkContext with ResetSyst
       new MapOutputTrackerMasterEndpoint(rpcEnv, masterTracker, conf))
 
     val slaveConf = sparkSSLConfig()
+      .set("spark.rpc.askTimeout", "5s")
+      .set("spark.rpc.lookupTimeout", "5s")
     val securityManagerBad = new SecurityManager(slaveConf)
 
     val slaveRpcEnv = RpcEnv.create("spark-slave", hostname, 0, slaveConf, securityManagerBad)
-    val slaveTracker = new MapOutputTrackerWorker(conf)
     try {
       slaveRpcEnv.setupEndpointRef("spark", rpcEnv.address, MapOutputTracker.ENDPOINT_NAME)
       fail("should receive either ActorNotFound or TimeoutException")

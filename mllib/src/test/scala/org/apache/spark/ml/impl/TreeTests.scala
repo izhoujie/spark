@@ -42,7 +42,7 @@ private[ml] object TreeTests extends SparkFunSuite {
       data: RDD[LabeledPoint],
       categoricalFeatures: Map[Int, Int],
       numClasses: Int): DataFrame = {
-    val sqlContext = new SQLContext(data.sparkContext)
+    val sqlContext = SQLContext.getOrCreate(data.sparkContext)
     import sqlContext.implicits._
     val df = data.toDF()
     val numFeatures = data.first().features.size
@@ -123,5 +123,23 @@ private[ml] object TreeTests extends SparkFunSuite {
       case ex: Exception => throw new AssertionError(
         "checkEqual failed since the two tree ensembles were not identical")
     }
+  }
+
+  /**
+   * Helper method for constructing a tree for testing.
+   * Given left, right children, construct a parent node.
+   * @param split  Split for parent node
+   * @return  Parent node with children attached
+   */
+  def buildParentNode(left: Node, right: Node, split: Split): Node = {
+    val leftImp = left.impurityStats
+    val rightImp = right.impurityStats
+    val parentImp = leftImp.copy.add(rightImp)
+    val leftWeight = leftImp.count / parentImp.count.toDouble
+    val rightWeight = rightImp.count / parentImp.count.toDouble
+    val gain = parentImp.calculate() -
+      (leftWeight * leftImp.calculate() + rightWeight * rightImp.calculate())
+    val pred = parentImp.predict
+    new InternalNode(pred, parentImp.calculate(), gain, left, right, split, parentImp)
   }
 }

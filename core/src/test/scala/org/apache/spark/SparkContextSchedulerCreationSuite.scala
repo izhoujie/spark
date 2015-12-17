@@ -19,6 +19,7 @@ package org.apache.spark
 
 import org.scalatest.PrivateMethodTester
 
+import org.apache.spark.util.Utils
 import org.apache.spark.scheduler.{SchedulerBackend, TaskScheduler, TaskSchedulerImpl}
 import org.apache.spark.scheduler.cluster.{SimrSchedulerBackend, SparkDeploySchedulerBackend}
 import org.apache.spark.scheduler.cluster.mesos.{CoarseMesosSchedulerBackend, MesosSchedulerBackend}
@@ -122,7 +123,7 @@ class SparkContextSchedulerCreationSuite
   }
 
   test("local-cluster") {
-    createTaskScheduler("local-cluster[3, 14, 512]").backend match {
+    createTaskScheduler("local-cluster[3, 14, 1024]").backend match {
       case s: SparkDeploySchedulerBackend => // OK
       case _ => fail()
     }
@@ -131,7 +132,7 @@ class SparkContextSchedulerCreationSuite
   def testYarn(master: String, expectedClassName: String) {
     try {
       val sched = createTaskScheduler(master)
-      assert(sched.getClass === Class.forName(expectedClassName))
+      assert(sched.getClass === Utils.classForName(expectedClassName))
     } catch {
       case e: SparkException =>
         assert(e.getMessage.contains("YARN mode not available"))
@@ -174,6 +175,11 @@ class SparkContextSchedulerCreationSuite
   }
 
   test("mesos with zookeeper") {
+    testMesos("mesos://zk://localhost:1234,localhost:2345",
+      classOf[MesosSchedulerBackend], coarse = false)
+  }
+
+  test("mesos with zookeeper and Master URL starting with zk://") {
     testMesos("zk://localhost:1234,localhost:2345", classOf[MesosSchedulerBackend], coarse = false)
   }
 }
